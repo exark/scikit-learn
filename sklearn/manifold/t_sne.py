@@ -173,13 +173,9 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     dist += 1.
     dist **= (degrees_of_freedom + 1.0) / -2.0
     if weights is not None:
-        fxi_fxj = np.empty((n_samples * (n_samples - 1)) // 2, dtype=np.float32)
-        k = 0
-        for i in range(0, n_samples - 1):
-            for j in range(i + 1, n_samples):
-                fxi_fxj[k] = weights[i] * weights[j]
-                k = k + 1
-        dist *= fxi_fxj
+        fxi_fxj = np.dot(weights[:, np.newaxis], weights[np.newaxis, :])
+        np.fill_diagonal(fxi_fxj, 0.)
+        dist *= squareform(fxi_fxj)
     Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
 
     # Optimization trick below: np.dot(x, y) is faster than
