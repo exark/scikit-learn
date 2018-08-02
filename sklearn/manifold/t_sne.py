@@ -32,7 +32,7 @@ from ..utils import deprecated
 MACHINE_EPSILON = np.finfo(np.double).eps
 
 
-def _joint_probabilities(distances, desired_perplexity, verbose):
+def _joint_probabilities(distances, desired_perplexity, verbose, weights = None):
     """Compute joint probabilities p_ij from distances.
 
     Parameters
@@ -56,8 +56,12 @@ def _joint_probabilities(distances, desired_perplexity, verbose):
     # Compute conditional probabilities such that they approximately match
     # the desired perplexity
     distances = distances.astype(np.float32, copy=False)
-    conditional_P = _utils._binary_search_perplexity(
-        distances, None, desired_perplexity, verbose)
+    if weights is not None:
+        conditional_P = _utils._binary_search_perplexity_weighted(
+            distances, None, weights, desired_perplexity, verbose)
+    else:
+        conditional_P = _utils._binary_search_perplexity(
+            distances, None, desired_perplexity, verbose)
     P = conditional_P + conditional_P.T
     sum_P = np.maximum(np.sum(P), MACHINE_EPSILON)
     P = np.maximum(squareform(P) / sum_P, MACHINE_EPSILON)
@@ -121,7 +125,7 @@ def _joint_probabilities_nn(distances, neighbors, desired_perplexity, verbose):
 
 
 def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
-                   skip_num_points=0, compute_error=True):
+                   skip_num_points=0, compute_error=True, weights = None):
     """t-SNE objective function: gradient of the KL divergence
     of p_ijs and q_ijs and the absolute error.
 
@@ -150,6 +154,8 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     compute_error: bool (optional, default:True)
         If False, the kl_divergence is not computed and returns NaN.
 
+    weights : array, shape (n_samples)
+
     Returns
     -------
     kl_divergence : float
@@ -166,6 +172,14 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     dist /= degrees_of_freedom
     dist += 1.
     dist **= (degrees_of_freedom + 1.0) / -2.0
+    if weights is not None:
+        fxi_fxj = np.empty((n_samples * (n_samples - 1)) // 2, dtype=np.float32)
+        k = 0
+        for i in range(0, n_samples - 1):
+            for j in range(i + 1, n_samples):
+                fxi_fxj[k] = weights[i] * weights[j]
+                k = k + 1
+        dist *= fxi_fxj
     Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
 
     # Optimization trick below: np.dot(x, y) is faster than
@@ -645,7 +659,7 @@ class TSNE(BaseEstimator):
         self.method = method
         self.angle = angle
 
-    def _fit(self, X, skip_num_points=0):
+    def _fit(self, X, skip_num_points=0, weights = None):
         """Fit the model using X as training data.
 
         Note that sparse arrays can only be handled by method='exact'.
@@ -666,6 +680,8 @@ class TSNE(BaseEstimator):
             This does not compute the gradient for points with indices below
             `skip_num_points`. This is useful when computing transforms of new
             data where you'd like to keep the old data fixed.
+
+        weights : array, shape (n_samples)
         """
         if self.method not in ['barnes_hut', 'exact']:
             raise ValueError("'method' must be 'barnes_hut' or 'exact'")
@@ -707,6 +723,9 @@ class TSNE(BaseEstimator):
         if self.n_iter < 250:
             raise ValueError("n_iter should be at least 250")
 
+        if weights is not None:
+            weights = check_array(weights, dtype=[np.float32], ensure_2d = False)
+
         n_samples = X.shape[0]
 
         neighbors_nn = None
@@ -730,7 +749,10 @@ class TSNE(BaseEstimator):
                                      "metric given is not correct")
 
             # compute the joint probability distribution for the input space
-            P = _joint_probabilities(distances, self.perplexity, self.verbose)
+            P = _joint_probabilities(distances,
+                                     self.perplexity,
+                                     self.verbose,
+                                     weights = weights)
             assert np.all(np.isfinite(P)), "All probabilities should be finite"
             assert np.all(P >= 0), "All probabilities should be non-negative"
             assert np.all(P <= 1), ("All probabilities should be less "
@@ -803,7 +825,8 @@ class TSNE(BaseEstimator):
         return self._tsne(P, degrees_of_freedom, n_samples,
                           X_embedded=X_embedded,
                           neighbors=neighbors_nn,
-                          skip_num_points=skip_num_points)
+                          skip_num_points=skip_num_points,
+                          weights = weights)
 
     @property
     @deprecated("Attribute n_iter_final was deprecated in version 0.19 and "
@@ -812,7 +835,7 @@ class TSNE(BaseEstimator):
         return self.n_iter_
 
     def _tsne(self, P, degrees_of_freedom, n_samples, X_embedded,
-              neighbors=None, skip_num_points=0):
+              neighbors=None, skip_num_points=0, weights = None):
         """Runs t-SNE."""
         # t-SNE minimizes the Kullback-Leiber divergence of the Gaussians P
         # and the Student's t-distributions Q. The optimization algorithm that
@@ -827,12 +850,13 @@ class TSNE(BaseEstimator):
             "min_grad_norm": self.min_grad_norm,
             "learning_rate": self.learning_rate,
             "verbose": self.verbose,
-            "kwargs": dict(skip_num_points=skip_num_points),
+            "kwargs": dict(skip_num_points=skip_num_points, weights=weights),
             "args": [P, degrees_of_freedom, n_samples, self.n_components],
             "n_iter_without_progress": self._EXPLORATION_N_ITER,
             "n_iter": self._EXPLORATION_N_ITER,
             "momentum": 0.5,
         }
+
         if self.method == 'barnes_hut':
             obj_func = _kl_divergence_bh
             opt_args['kwargs']['angle'] = self.angle
@@ -874,7 +898,7 @@ class TSNE(BaseEstimator):
 
         return X_embedded
 
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X, y=None, weights = None):
         """Fit X into an embedded space and return that transformed
         output.
 
@@ -886,16 +910,18 @@ class TSNE(BaseEstimator):
 
         y : Ignored
 
+        weights : array, shape (n_samples)
+
         Returns
         -------
         X_new : array, shape (n_samples, n_components)
             Embedding of the training data in low-dimensional space.
         """
-        embedding = self._fit(X)
+        embedding = self._fit(X, weights = weights)
         self.embedding_ = embedding
         return self.embedding_
 
-    def fit(self, X, y=None):
+    def fit(self, X, y=None, weights = None):
         """Fit X into an embedded space.
 
         Parameters
@@ -907,6 +933,8 @@ class TSNE(BaseEstimator):
             or 'coo'.
 
         y : Ignored
+
+        weights : array, shape (n_samples)
         """
-        self.fit_transform(X)
+        self.fit_transform(X, weights = weights)
         return self

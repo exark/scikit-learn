@@ -16,6 +16,26 @@ cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity(
         np.ndarray[np.int64_t, ndim=2] neighbors,
         float desired_perplexity,
         int verbose):
+
+        cdef long n_samples = affinities.shape[0]
+
+        cdef np.ndarray[np.float32_t, ndim=1] weights = np.ones(
+            (n_samples), dtype=np.float32)
+
+        return _binary_search_perplexity_weighted(
+         affinities,
+         neighbors,
+         weights,
+         desired_perplexity,
+         verbose)
+
+
+cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity_weighted(
+        np.ndarray[np.float32_t, ndim=2] affinities,
+        np.ndarray[np.int64_t, ndim=2] neighbors,
+        np.ndarray[np.float32_t, ndim=1] weights,
+        float desired_perplexity,
+        int verbose):
     """Binary search for sigmas of conditional Gaussians.
 
     This approximation reduces the computational complexity from O(N^2) to
@@ -84,7 +104,7 @@ cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity(
             sum_Pi = 0.0
             for j in range(n_neighbors):
                 if j != i or using_neighbors:
-                    P[i, j] = math.exp(-affinities[i, j] * beta)
+                    P[i, j] = weights[j] * (math.exp(-affinities[i, j] * beta))
                     sum_Pi += P[i, j]
 
             if sum_Pi == 0.0:
@@ -95,7 +115,7 @@ cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity(
                 P[i, j] /= sum_Pi
                 sum_disti_Pi += affinities[i, j] * P[i, j]
 
-            entropy = math.log(sum_Pi) + beta * sum_disti_Pi
+            entropy = -1 * np.sum(weights.T[:, np.newaxis] * P * math.log(P))
             entropy_diff = entropy - desired_entropy
 
             if math.fabs(entropy_diff) <= PERPLEXITY_TOLERANCE:
