@@ -113,14 +113,14 @@ cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity_weighted(
 
             entropy = 0.0
             for j in range(n_neighbors):
-#                P[i, j] *= weights[j]~
+#                P[i, j] *= weights[j]
                 P[i, j] /= sum_Pi
                 sum_disti_Pi += affinities[i, j] * P[i, j]
-                entropy += (weights[j] * P[i,j] * math.log(P[i,j]))
+#                entropy += (weights[j] * P[i,j] * math.log(P[i,j]))
 
 
-            entropy *= -1
-            #entropy = math.log(sum_Pi) + beta * sum_disti_Pi
+#            entropy *= -1
+            entropy = math.log(sum_Pi) + beta * sum_disti_Pi
             entropy_diff = entropy - desired_entropy
 
             if math.fabs(entropy_diff) <= PERPLEXITY_TOLERANCE:
