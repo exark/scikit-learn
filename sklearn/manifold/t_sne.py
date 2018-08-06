@@ -204,7 +204,7 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
 
 def _kl_divergence_bh(params, P, degrees_of_freedom, n_samples, n_components,
                       angle=0.5, skip_num_points=0, verbose=False,
-                      compute_error=True):
+                      compute_error=True, weights = None):
     """t-SNE objective function: KL divergence of p_ijs and q_ijs.
 
     Uses Barnes-Hut tree methods to calculate the gradient that
