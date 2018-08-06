@@ -78,7 +78,9 @@ cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity_weighted(
 
     cdef float entropy
     cdef float sum_Pi
-    cdef float sum_disti_Pi
+    cdef float sum_disti_Pi_w
+    cdef float sum_Pi_w
+    cdef float sum_Pi_log_w
     cdef long i, j, k, l
     cdef long n_neighbors = n_samples
     cdef int using_neighbors = neighbors is not None
@@ -109,18 +111,19 @@ cpdef np.ndarray[np.float32_t, ndim=2] _binary_search_perplexity_weighted(
 
             if sum_Pi == 0.0:
                 sum_Pi = EPSILON_DBL
-            sum_disti_Pi = 0.0
+
+            sum_disti_Pi_w = 0.0
+            sum_Pi_w = 0.0
+            sum_Pi_log_w = 0.0
 
             entropy = 0.0
             for j in range(n_neighbors):
-#                P[i, j] *= weights[j]
                 P[i, j] /= sum_Pi
-                sum_disti_Pi += affinities[i, j] * P[i, j]
-#                entropy += (weights[j] * P[i,j] * math.log(P[i,j]))
+                sum_disti_Pi_w += weights[j] * affinities[i,j] * P[i,j]
+                sum_Pi_w += weights[j] * P[i,j]
+                sum_Pi_log_w += weights[j] * math.log(weights[j]) * P[i,j]
 
-
-#            entropy *= -1
-            entropy = math.log(sum_Pi) + beta * sum_disti_Pi
+            entropy = math.log(sum_Pi) * sum_Pi_w + beta * sum_disti_Pi_w - sum_Pi_log_w
             entropy_diff = entropy - desired_entropy
 
             if math.fabs(entropy_diff) <= PERPLEXITY_TOLERANCE:
