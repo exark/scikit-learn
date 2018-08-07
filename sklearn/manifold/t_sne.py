@@ -172,6 +172,7 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     dist /= degrees_of_freedom
     dist += 1.
     dist **= (degrees_of_freedom + 1.0) / -2.0
+    dist_orig = dist.copy()
     if weights is not None:
         fxi_fxj = np.dot(weights[:, np.newaxis], weights[np.newaxis, :])
         np.fill_diagonal(fxi_fxj, 0.)
@@ -191,7 +192,7 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     # Gradient: dC/dY
     # pdist always returns double precision distances. Thus we need to take
     grad = np.ndarray((n_samples, n_components), dtype=params.dtype)
-    PQd = squareform((P - Q) * dist)
+    PQd = squareform((P - Q) * dist_orig)
     for i in range(skip_num_points, n_samples):
         grad[i] = np.dot(np.ravel(PQd[i], order='K'),
                          X_embedded[i] - X_embedded)
