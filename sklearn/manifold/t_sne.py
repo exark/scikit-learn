@@ -172,12 +172,12 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     dist /= degrees_of_freedom
     dist += 1.
     dist **= (degrees_of_freedom + 1.0) / -2.0
-    if weights is not None:
-        dist *= weights
-        Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
+    # if weights is not None:
+    #     dist *= weights
+    #     Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
         #dist /= weights
-    else:
-        Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
+    # else:
+    Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
 
     # Optimization trick below: np.dot(x, y) is faster than
     # np.sum(x * y) because it calls BLAS
@@ -841,10 +841,10 @@ class TSNE(BaseEstimator):
         # * final optimization with momentum at 0.8
         params = X_embedded.ravel()
 
-        if weights is not None:
-            weights = np.dot(weights[:, np.newaxis], weights[np.newaxis, :])
-            np.fill_diagonal(weights, 0.)
-            weights = squareform(weights)
+        # if weights is not None:
+        #     weights = np.dot(weights[:, np.newaxis], weights[np.newaxis, :])
+        #     np.fill_diagonal(weights, 0.)
+        #     weights = squareform(weights)
 
         opt_args = {
             "it": 0,
