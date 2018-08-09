@@ -175,7 +175,7 @@ def _kl_divergence(params, P, degrees_of_freedom, n_samples, n_components,
     if weights is not None:
         dist *= weights
         Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
-        dist /= weights
+        #dist /= weights
     else:
         Q = np.maximum(dist / (2.0 * np.sum(dist)), MACHINE_EPSILON)
 
