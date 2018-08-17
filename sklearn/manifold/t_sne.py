@@ -68,7 +68,8 @@ def _joint_probabilities(distances, desired_perplexity, verbose, weights = None)
     return P
 
 
-def _joint_probabilities_nn(distances, neighbors, desired_perplexity, verbose):
+def _joint_probabilities_nn(distances, neighbors, desired_perplexity, verbose,
+                            weights = None):
     """Compute joint probabilities p_ij from distances using just nearest
     neighbors.
 
@@ -90,6 +91,8 @@ def _joint_probabilities_nn(distances, neighbors, desired_perplexity, verbose):
     verbose : int
         Verbosity level.
 
+    weights: array, shape (n_samples)
+
     Returns
     -------
     P : csr sparse matrix, shape (n_samples, n_samples)
@@ -101,8 +104,12 @@ def _joint_probabilities_nn(distances, neighbors, desired_perplexity, verbose):
     n_samples, k = neighbors.shape
     distances = distances.astype(np.float32, copy=False)
     neighbors = neighbors.astype(np.int64, copy=False)
-    conditional_P = _utils._binary_search_perplexity(
-        distances, neighbors, desired_perplexity, verbose)
+    if weights is not None:
+        conditional_P = _utils._binary_search_perplexity_weighted(
+            distances, neighbors, weights, desired_perplexity, verbose)
+    else:
+        conditional_P = _utils._binary_search_perplexity(
+            distances, neighbors, desired_perplexity, verbose)
     assert np.all(np.isfinite(conditional_P)), \
         "All probabilities should be finite"
 
@@ -796,7 +803,8 @@ class TSNE(BaseEstimator):
 
             # compute the joint probability distribution for the input space
             P = _joint_probabilities_nn(distances_nn, neighbors_nn,
-                                        self.perplexity, self.verbose)
+                                        self.perplexity, self.verbose,
+                                        weights = weights)
 
         if isinstance(self.init, np.ndarray):
             X_embedded = self.init
